@@ -1,12 +1,15 @@
 package db
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
+	"github.com/Ramyprojs/goclip/internal/clip"
 	"go.etcd.io/bbolt"
 )
 
@@ -59,6 +62,44 @@ func (s *Store) CloseDB() error {
 	}
 
 	s.db = nil
+	return nil
+}
+
+// SaveClip persists a clipboard entry in the clips bucket.
+func (s *Store) SaveClip(entry clip.Clip) error {
+	if s == nil {
+		return errors.New("db store is nil")
+	}
+
+	if s.db == nil {
+		return errors.New("db is not open")
+	}
+
+	if entry.CopiedAt.IsZero() {
+		entry.CopiedAt = time.Now().UTC()
+	}
+
+	if entry.ID == 0 {
+		entry.ID = uint64(entry.CopiedAt.UnixNano())
+	}
+
+	payload, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshal clip: %w", err)
+	}
+
+	key := []byte(strconv.FormatInt(entry.CopiedAt.UnixNano(), 10))
+	if err := s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(clipsBucket))
+		if bucket == nil {
+			return errors.New("clips bucket not found")
+		}
+
+		return bucket.Put(key, payload)
+	}); err != nil {
+		return fmt.Errorf("save clip: %w", err)
+	}
+
 	return nil
 }
 
