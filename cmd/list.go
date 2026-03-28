@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/Ramyprojs/goclip/internal/clip"
-	"github.com/Ramyprojs/goclip/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +31,7 @@ var listCmd = &cobra.Command{
 			return errors.New("limit cannot be negative")
 		}
 
-		store, err := db.OpenDB("")
+		store, err := openStore()
 		if err != nil {
 			return err
 		}
@@ -61,7 +60,7 @@ var listCmd = &cobra.Command{
 				"%d. %s  %s\n",
 				i+1,
 				entry.CopiedAt.Format("2006-01-02 15:04:05"),
-				previewClip(entry.Content, 60),
+				previewClip(entry.Content, configuredPreviewLength()),
 			)
 		}
 

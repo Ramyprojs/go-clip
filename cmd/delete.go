@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Ramyprojs/goclip/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +26,7 @@ var deleteCmd = &cobra.Command{
 			return errors.New("index must be greater than 0")
 		}
 
-		store, err := db.OpenDB("")
+		store, err := openStore()
 		if err != nil {
 			return err
 		}

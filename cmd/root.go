@@ -8,6 +8,9 @@ var rootCmd = &cobra.Command{
 	Long:          "goclip stores clipboard history locally and lets you search it from the terminal.",
 	SilenceErrors: true,
 	SilenceUsage:  true,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return loadAppConfig()
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runUICommand(cmd, args)
 	},

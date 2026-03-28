@@ -17,5 +17,5 @@ func init() {
 }
 
 func runUICommand(cmd *cobra.Command, args []string) error {
-	return ui.StartTUI()
+	return ui.StartTUI(appConfig)
 }

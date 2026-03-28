@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/Ramyprojs/goclip/internal/clip"
-	"github.com/Ramyprojs/goclip/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +25,7 @@ var addCmd = &cobra.Command{
 			return err
 		}
 
-		store, err := db.OpenDB("")
+		store, err := openStore()
 		if err != nil {
 			return err
 		}
@@ -40,6 +39,10 @@ var addCmd = &cobra.Command{
 		}
 
 		if err := store.SaveClip(entry); err != nil {
+			return err
+		}
+
+		if err := enforceMaxHistory(store); err != nil {
 			return err
 		}
 

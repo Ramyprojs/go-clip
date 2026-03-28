@@ -9,15 +9,15 @@ import (
 	sysclip "golang.design/x/clipboard"
 
 	"github.com/Ramyprojs/goclip/internal/clip"
+	"github.com/Ramyprojs/goclip/internal/config"
 	"github.com/Ramyprojs/goclip/internal/db"
 	clipsearch "github.com/Ramyprojs/goclip/internal/search"
 )
 
 const (
-	defaultWidth        = 84
-	defaultHeight       = 24
-	defaultPreviewWidth = 64
-	statusHints         = "Enter copy | D delete | Q quit"
+	defaultWidth  = 84
+	defaultHeight = 24
+	statusHints   = "Enter copy | D delete | Q quit"
 )
 
 type styles struct {
@@ -60,14 +60,19 @@ type model struct {
 	selected  int
 	store     clipStore
 	clipboard clipboardWriter
+	preview   int
 	styles    styles
 }
 
 func newModel(clips []clip.Clip) model {
-	return newModelWithRuntime(clips, nil, nil)
+	return newModelWithRuntime(clips, nil, nil, config.DefaultConfig().PreviewLength)
 }
 
-func newModelWithRuntime(clips []clip.Clip, store clipStore, clipboard clipboardWriter) model {
+func newModelWithRuntime(clips []clip.Clip, store clipStore, clipboard clipboardWriter, previewLength int) model {
+	if previewLength <= 0 {
+		previewLength = config.DefaultConfig().PreviewLength
+	}
+
 	m := model{
 		width:     defaultWidth,
 		height:    defaultHeight,
@@ -75,6 +80,7 @@ func newModelWithRuntime(clips []clip.Clip, store clipStore, clipboard clipboard
 		clips:     append([]clip.Clip(nil), clips...),
 		store:     store,
 		clipboard: clipboard,
+		preview:   previewLength,
 		styles:    defaultStyles(),
 	}
 	m.applyFilter()
@@ -96,8 +102,8 @@ func (systemClipboard) WriteText(content string) error {
 }
 
 // StartTUI loads clipboard history and launches the Bubble Tea interface.
-func StartTUI() error {
-	store, err := db.OpenDB("")
+func StartTUI(cfg config.Config) error {
+	store, err := db.OpenDB(cfg.DBPath)
 	if err != nil {
 		return err
 	}
@@ -111,7 +117,7 @@ func StartTUI() error {
 	}
 
 	clipboard, clipboardErr := newSystemClipboard()
-	model := newModelWithRuntime(clips, store, clipboard)
+	model := newModelWithRuntime(clips, store, clipboard, cfg.PreviewLength)
 	if clipboardErr != nil {
 		model.status = fmt.Sprintf("Clipboard unavailable: %v", clipboardErr)
 	}
@@ -448,13 +454,20 @@ func (m model) previewContent(content string) string {
 }
 
 func (m model) previewWidth() int {
-	width := defaultPreviewWidth
-	if m.width > 0 {
-		width = m.width - 12
+	width := m.preview
+	if width <= 0 {
+		width = config.DefaultConfig().PreviewLength
 	}
 
-	if width < 24 {
-		return 24
+	if m.width > 0 {
+		maxWidth := m.width - 12
+		if maxWidth < 8 {
+			maxWidth = 8
+		}
+
+		if width > maxWidth {
+			width = maxWidth
+		}
 	}
 
 	return width
