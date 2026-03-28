@@ -9,7 +9,7 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		return loadAppConfig()
+		return loadAppConfigWithFallback(cmd.Name() == "uninstall")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runUICommand(cmd, args)

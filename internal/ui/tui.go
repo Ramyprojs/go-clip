@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	defaultWidth  = 84
-	defaultHeight = 24
-	statusHints   = "Enter copy | D delete | Q quit"
+	defaultWidth      = 84
+	defaultHeight     = 24
+	browseStatusHints = "A add | Enter copy | D delete | Q quit"
+	addModeHints      = "Enter save | Esc cancel | Ctrl+C quit"
 )
 
 type styles struct {
@@ -42,6 +43,7 @@ type styles struct {
 type clipStore interface {
 	DeleteClip(id uint64) error
 	GetAllClips() ([]clip.Clip, error)
+	SaveClip(entry clip.Clip) error
 }
 
 type clipboardWriter interface {
@@ -51,37 +53,42 @@ type clipboardWriter interface {
 type systemClipboard struct{}
 
 type model struct {
-	width     int
-	height    int
-	query     string
-	status    string
-	clips     []clip.Clip
-	filtered  []clip.Clip
-	selected  int
-	store     clipStore
-	clipboard clipboardWriter
-	preview   int
-	styles    styles
+	width      int
+	height     int
+	query      string
+	draft      string
+	status     string
+	clips      []clip.Clip
+	filtered   []clip.Clip
+	selected   int
+	adding     bool
+	store      clipStore
+	clipboard  clipboardWriter
+	preview    int
+	maxHistory int
+	styles     styles
 }
 
 func newModel(clips []clip.Clip) model {
-	return newModelWithRuntime(clips, nil, nil, config.DefaultConfig().PreviewLength)
+	cfg := config.DefaultConfig()
+	return newModelWithRuntime(clips, nil, nil, cfg.PreviewLength, cfg.MaxHistory)
 }
 
-func newModelWithRuntime(clips []clip.Clip, store clipStore, clipboard clipboardWriter, previewLength int) model {
+func newModelWithRuntime(clips []clip.Clip, store clipStore, clipboard clipboardWriter, previewLength int, maxHistory int) model {
 	if previewLength <= 0 {
 		previewLength = config.DefaultConfig().PreviewLength
 	}
 
 	m := model{
-		width:     defaultWidth,
-		height:    defaultHeight,
-		status:    "Ready.",
-		clips:     append([]clip.Clip(nil), clips...),
-		store:     store,
-		clipboard: clipboard,
-		preview:   previewLength,
-		styles:    defaultStyles(),
+		width:      defaultWidth,
+		height:     defaultHeight,
+		status:     "Ready.",
+		clips:      append([]clip.Clip(nil), clips...),
+		store:      store,
+		clipboard:  clipboard,
+		preview:    previewLength,
+		maxHistory: maxHistory,
+		styles:     defaultStyles(),
 	}
 	m.applyFilter()
 
@@ -117,7 +124,7 @@ func StartTUI(cfg config.Config) error {
 	}
 
 	clipboard, clipboardErr := newSystemClipboard()
-	model := newModelWithRuntime(clips, store, clipboard, cfg.PreviewLength)
+	model := newModelWithRuntime(clips, store, clipboard, cfg.PreviewLength, cfg.MaxHistory)
 	if clipboardErr != nil {
 		model.status = fmt.Sprintf("Clipboard unavailable: %v", clipboardErr)
 	}
@@ -150,11 +157,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		if m.adding {
+			m.handleAddModeKey(msg)
+			return m, nil
+		}
+
 		if len(msg.Runes) == 1 {
 			switch msg.Runes[0] {
+			case 'a', 'A':
+				m.startAddMode()
+				return m, nil
 			case 'Q':
+				fallthrough
+			case 'q':
 				return m, tea.Quit
 			case 'D':
+				fallthrough
+			case 'd':
 				m.deleteSelected()
 				return m, nil
 			}
@@ -305,6 +324,83 @@ func (m *model) copySelected() {
 	m.status = "Copied selected clip."
 }
 
+func (m *model) handleAddModeKey(msg tea.KeyMsg) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.cancelAddMode()
+	case tea.KeyEnter:
+		m.saveDraft()
+	case tea.KeyBackspace, tea.KeyCtrlH:
+		m.removeLastDraftRune()
+	default:
+		if len(msg.Runes) > 0 {
+			m.draft += string(msg.Runes)
+		}
+	}
+}
+
+func (m *model) startAddMode() {
+	m.adding = true
+	m.draft = ""
+	m.status = "Add mode: type a new clip and press Enter to save."
+}
+
+func (m *model) cancelAddMode() {
+	m.adding = false
+	m.draft = ""
+	m.status = "Add cancelled."
+}
+
+func (m *model) removeLastDraftRune() {
+	runes := []rune(m.draft)
+	if len(runes) == 0 {
+		return
+	}
+
+	m.draft = string(runes[:len(runes)-1])
+}
+
+func (m *model) saveDraft() {
+	if strings.TrimSpace(m.draft) == "" {
+		m.status = "Clip content cannot be empty."
+		return
+	}
+
+	if m.store == nil {
+		m.status = "Add unavailable."
+		return
+	}
+
+	entry := clip.Clip{
+		Content: strings.TrimSpace(m.draft),
+		Source:  "ui",
+	}
+
+	if err := m.store.SaveClip(entry); err != nil {
+		m.status = fmt.Sprintf("Save failed: %v", err)
+		return
+	}
+
+	if err := m.trimToMaxHistory(); err != nil {
+		m.status = fmt.Sprintf("Saved clip, but trimming failed: %v", err)
+	}
+
+	clips, err := m.store.GetAllClips()
+	if err != nil {
+		m.adding = false
+		m.draft = ""
+		m.status = fmt.Sprintf("Saved clip, but refresh failed: %v", err)
+		return
+	}
+
+	m.clips = clips
+	m.query = ""
+	m.adding = false
+	m.draft = ""
+	m.applyFilter()
+	m.status = "Saved new clip."
+}
+
 func (m *model) deleteSelected() {
 	entry, ok := m.currentSelection()
 	if !ok {
@@ -356,15 +452,42 @@ func (m *model) removeClipByID(id uint64) {
 	m.clips = next
 }
 
+func (m *model) trimToMaxHistory() error {
+	if m.maxHistory <= 0 || m.store == nil {
+		return nil
+	}
+
+	clips, err := m.store.GetAllClips()
+	if err != nil {
+		return fmt.Errorf("load clips for max history: %w", err)
+	}
+
+	for i := m.maxHistory; i < len(clips); i++ {
+		if err := m.store.DeleteClip(clips[i].ID); err != nil {
+			return fmt.Errorf("trim history: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (m model) renderSearchBar() string {
+	label := "Search: "
 	value := m.styles.searchHint.Render("type to filter clipboard history")
-	if strings.TrimSpace(m.query) != "" {
+
+	if m.adding {
+		label = "New Clip: "
+		value = m.styles.searchHint.Render("type a new clip and press Enter")
+		if strings.TrimSpace(m.draft) != "" {
+			value = m.styles.searchValue.Render(m.draft)
+		}
+	} else if strings.TrimSpace(m.query) != "" {
 		value = m.styles.searchValue.Render(m.query)
 	}
 
 	content := lipgloss.JoinHorizontal(
 		lipgloss.Left,
-		m.styles.searchLabel.Render("Search: "),
+		m.styles.searchLabel.Render(label),
 		value,
 	)
 
@@ -391,7 +514,7 @@ func (m model) renderListPane() string {
 
 func (m model) renderStatusBar() string {
 	left := m.styles.statusMessage.Render(m.status)
-	right := m.styles.statusHints.Render(statusHints)
+	right := m.styles.statusHints.Render(m.statusHints())
 	width := m.contentWidth()
 	innerWidth := width - 4
 	if innerWidth < 24 {
@@ -407,6 +530,14 @@ func (m model) renderStatusBar() string {
 	}
 
 	return m.styles.statusBar.Width(width).Render(content)
+}
+
+func (m model) statusHints() string {
+	if m.adding {
+		return addModeHints
+	}
+
+	return browseStatusHints
 }
 
 func (m model) renderClip(index int, entry clip.Clip) string {
