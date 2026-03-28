@@ -1,20 +1,34 @@
 # goclip
 
-`goclip` is a terminal clipboard manager written in Go. It stores clipboard history locally, supports fuzzy search from the command line, and includes an interactive Bubble Tea TUI for browsing, adding, copying, and deleting clips.
+![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-1f6feb)
+![Interface](https://img.shields.io/badge/interface-CLI%20%2B%20TUI-2ea44f)
 
-## Features
+`goclip` is a local-first clipboard history manager for the terminal. It gives you a fast command-line workflow for saving and searching clips, plus a polished Bubble Tea interface for browsing, adding, copying, and deleting items without leaving your terminal.
 
-- Local clipboard history stored in BoltDB
-- `goclip add` for saving text from arguments or piped stdin
-- `goclip list`, `search`, `delete`, `clear`, and `export` commands
-- Interactive TUI with live search, add, copy, delete, and quit keybindings
-- Configurable history size, DB path, and preview length through YAML config
-- One-command install scripts for macOS, Linux, and Windows PowerShell
-- Built-in `goclip uninstall` command to remove the binary and local data
+## Why goclip
+
+- Keep a searchable history of copied text on your machine
+- Jump between quick CLI commands and a full-screen TUI
+- Install with a single terminal command on macOS, Linux, or Windows PowerShell
+- Export, trim, and remove your clipboard history cleanly when you need to
+
+## Highlights
+
+| Capability | What you get |
+| --- | --- |
+| Local storage | Clipboard history is stored in BoltDB on your machine |
+| Terminal-first workflow | Add clips from args, pipes, search queries, or the interactive UI |
+| Fast TUI | Live search, keyboard navigation, add, copy, and delete actions |
+| Cross-platform delivery | Release builds and installer scripts for macOS, Linux, and Windows |
+| Clean removal | `goclip uninstall` removes the binary plus local history/config |
+| Configurable | Tune max history, DB location, and preview length with YAML |
 
 ## Installation
 
-### macOS and Linux
+`goclip` is designed to be installed without cloning the repository. The installers download the latest tagged release from GitHub Releases.
+
+### macOS / Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Ramyprojs/go-clip/main/scripts/install.sh | sh
@@ -26,9 +40,18 @@ curl -fsSL https://raw.githubusercontent.com/Ramyprojs/go-clip/main/scripts/inst
 irm https://raw.githubusercontent.com/Ramyprojs/go-clip/main/scripts/install.ps1 | iex
 ```
 
-These installers download the latest tagged release from GitHub Releases, so users do not need to clone the repository.
+### Install a specific version
 
-### Clone and build manually
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ramyprojs/go-clip/main/scripts/install.sh | GOCLIP_VERSION=v0.2.0 sh
+```
+
+```powershell
+$env:GOCLIP_VERSION = "v0.2.0"
+irm https://raw.githubusercontent.com/Ramyprojs/go-clip/main/scripts/install.ps1 | iex
+```
+
+### Build from source
 
 ```bash
 git clone https://github.com/Ramyprojs/go-clip.git
@@ -36,34 +59,59 @@ cd go-clip
 make build
 ```
 
+### Verify the install
+
+```bash
+goclip version
+goclip
+```
+
 ## Quick Start
 
 ```bash
-goclip add "hello from the terminal"
-printf "hello from stdin\n" | goclip add
+goclip add "API token for staging"
+printf "ssh user@host\n" | goclip add
 goclip list
-goclip search hello
+goclip search ssh
 goclip
 ```
 
 Running `goclip` with no subcommand launches the TUI by default.
 
-Inside the TUI:
+## TUI Controls
 
-- `A` starts add mode
-- `Enter` copies the selected clip, or saves a new clip while add mode is active
-- `D` deletes the selected clip
-- `Q` quits
+| Key | Action |
+| --- | --- |
+| `A` | Start add mode and type a new clip |
+| `Enter` | Copy the selected clip, or save a new clip while add mode is active |
+| `D` | Delete the selected clip |
+| `Up` / `Down` | Move through the clip list |
+| `Q` / `Ctrl+C` | Quit |
+
+## Commands
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `goclip` | Launch the TUI | `goclip` |
+| `goclip ui` | Launch the TUI explicitly | `goclip ui` |
+| `goclip add` | Save a clip from an argument or stdin | `echo "hello" \| goclip add` |
+| `goclip list` | Print recent clips | `goclip list --limit 10` |
+| `goclip search` | Fuzzy-search history | `goclip search token` |
+| `goclip delete` | Delete a clip by displayed index | `goclip delete 3` |
+| `goclip clear` | Remove all stored clips after confirmation | `goclip clear` |
+| `goclip export` | Export clips to JSON or text | `goclip export --format=json --output=clips.json` |
+| `goclip version` | Print the current version | `goclip version` |
+| `goclip uninstall` | Remove the binary and local data | `goclip uninstall` |
 
 ## Configuration
 
 `goclip` reads configuration from `~/.goclip/config.yaml`.
 
-Available options:
-
-- `max_history`: maximum number of stored clips before older items are trimmed
-- `db_path`: path to the BoltDB history file
-- `preview_length`: preview length used by list, search, and TUI views
+| Option | Default | Description |
+| --- | --- | --- |
+| `max_history` | `500` | Maximum number of stored clips before older items are trimmed |
+| `db_path` | `~/.goclip/history.db` | Custom location for the BoltDB history file |
+| `preview_length` | `60` | Preview length used by list, search, and TUI views |
 
 Example:
 
@@ -73,101 +121,23 @@ db_path: ~/.goclip/history.db
 preview_length: 60
 ```
 
-## Commands
+## Uninstall
 
-### `goclip`
-
-Launch the interactive TUI.
-
-```bash
-goclip
-```
-
-### `goclip ui`
-
-Launch the interactive TUI explicitly.
-
-```bash
-goclip ui
-```
-
-The TUI supports:
-
-- `A` to add a new clip without leaving the interface
-- `Enter` to copy the selected clip
-- `D` to delete the selected clip
-- `Q` to quit
-
-### `goclip add`
-
-Add a clip from an argument or stdin.
-
-```bash
-goclip add "important snippet"
-echo "copied from a pipe" | goclip add
-```
-
-### `goclip list`
-
-List stored clips in terminal output or JSON.
-
-```bash
-goclip list
-goclip list --limit 10
-goclip list --json
-```
-
-### `goclip search`
-
-Fuzzy-search stored clips.
-
-```bash
-goclip search ssh
-goclip search "api token"
-```
-
-### `goclip delete`
-
-Delete a clip by its displayed index.
-
-```bash
-goclip delete 3
-```
-
-### `goclip clear`
-
-Delete all stored history after confirmation.
-
-```bash
-goclip clear
-```
-
-### `goclip export`
-
-Export the full history to JSON or plain text.
-
-```bash
-goclip export --format=json --output=clips.json
-goclip export --format=txt --output=clips.txt
-```
-
-### `goclip version`
-
-Print the application version.
-
-```bash
-goclip version
-```
-
-### `goclip uninstall`
-
-Remove the installed binary, local history, and config after confirmation.
+To remove `goclip` completely:
 
 ```bash
 goclip uninstall
 ```
 
-## Make Targets
+That command removes:
+
+- the installed `goclip` binary
+- local clipboard history
+- local configuration in `~/.goclip`
+
+## Development
+
+### Make targets
 
 ```bash
 make build
@@ -178,10 +148,10 @@ make clean
 make install
 ```
 
-## Release Flow
+### Release flow
 
-Pushing a tag like `v0.2.0` triggers [`.github/workflows/release.yml`](/Users/e3tsamy/docu/Prog/go-clip/.github/workflows/release.yml), which builds release archives for Linux, macOS, and Windows and uploads them to GitHub Releases. The install scripts use those release assets.
+Pushing a tag like `v0.2.0` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds release archives for Linux, macOS, and Windows and uploads them to GitHub Releases. The one-line install scripts use those release assets.
 
 ## Screenshots
 
-TUI screenshots can be added here once you capture the interactive interface.
+Add terminal screenshots or an asciinema demo here to show the TUI in action.
