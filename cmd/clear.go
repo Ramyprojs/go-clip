@@ -7,7 +7,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Ramyprojs/goclip/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +16,7 @@ var clearCmd = &cobra.Command{
 	Long:  "Delete every stored clip from clipboard history after confirmation.",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := db.OpenDB("")
+		store, err := openStore()
 		if err != nil {
 			return err
 		}

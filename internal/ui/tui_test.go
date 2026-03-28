@@ -60,7 +60,7 @@ func TestModelCopiesSelectedClipOnEnter(t *testing.T) {
 	mockClipboard := &fakeClipboard{}
 	m := newModelWithRuntime([]clip.Clip{
 		{ID: 1, Content: "copy me", CopiedAt: now},
-	}, nil, mockClipboard)
+	}, nil, mockClipboard, 60)
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = updated.(model)
@@ -85,7 +85,7 @@ func TestModelDeletesSelectedClipOnUppercaseD(t *testing.T) {
 			{ID: 1, Content: "oldest", CopiedAt: now},
 		},
 	}
-	m := newModelWithRuntime(store.clips, store, nil)
+	m := newModelWithRuntime(store.clips, store, nil, 60)
 	m.selected = 1
 	m.applyFilter()
 

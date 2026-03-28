@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Ramyprojs/goclip/internal/clip"
-	"github.com/Ramyprojs/goclip/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +27,7 @@ var exportCmd = &cobra.Command{
 			return errors.New("output path is required")
 		}
 
-		store, err := db.OpenDB("")
+		store, err := openStore()
 		if err != nil {
 			return err
 		}

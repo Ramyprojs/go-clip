@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Ramyprojs/goclip/internal/db"
 	clipsearch "github.com/Ramyprojs/goclip/internal/search"
 	"github.com/spf13/cobra"
 )
 
 const (
-	searchPreviewLimit = 60
-	ansiBold           = "\033[1m"
-	ansiReset          = "\033[0m"
+	ansiBold  = "\033[1m"
+	ansiReset = "\033[0m"
 )
 
 var searchCmd = &cobra.Command{
@@ -27,7 +25,7 @@ var searchCmd = &cobra.Command{
 			return errors.New("query cannot be empty")
 		}
 
-		store, err := db.OpenDB("")
+		store, err := openStore()
 		if err != nil {
 			return err
 		}
@@ -52,7 +50,7 @@ var searchCmd = &cobra.Command{
 				"%d. %s  %s\n",
 				i+1,
 				entry.CopiedAt.Format("2006-01-02 15:04:05"),
-				highlightSearchPreview(entry.Content, query, searchPreviewLimit),
+				highlightSearchPreview(entry.Content, query, configuredPreviewLength()),
 			)
 		}
 
