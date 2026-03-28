@@ -1,0 +1,97 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            archive: tar.gz
+            asset_name: goclip_linux_amd64.tar.gz
+            binary_name: goclip
+          - goos: linux
+            goarch: arm64
+            archive: tar.gz
+            asset_name: goclip_linux_arm64.tar.gz
+            binary_name: goclip
+          - goos: darwin
+            goarch: amd64
+            archive: tar.gz
+            asset_name: goclip_darwin_amd64.tar.gz
+            binary_name: goclip
+          - goos: darwin
+            goarch: arm64
+            archive: tar.gz
+            asset_name: goclip_darwin_arm64.tar.gz
+            binary_name: goclip
+          - goos: windows
+            goarch: amd64
+            archive: zip
+            asset_name: goclip_windows_amd64.zip
+            binary_name: goclip.exe
+          - goos: windows
+            goarch: arm64
+            archive: zip
+            asset_name: goclip_windows_arm64.zip
+            binary_name: goclip.exe
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: "0"
+          GOARCH: ${{ matrix.goarch }}
+          GOOS: ${{ matrix.goos }}
+        run: |
+          mkdir -p dist/${{ matrix.goos }}_${{ matrix.goarch }}
+          go build -ldflags "-X github.com/Ramyprojs/goclip/cmd.version=${GITHUB_REF_NAME}" -o dist/${{ matrix.goos }}_${{ matrix.goarch }}/${{ matrix.binary_name }} .
+
+      - name: Package release asset
+        run: |
+          cd dist/${{ matrix.goos }}_${{ matrix.goarch }}
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip -q ../${{ matrix.asset_name }} ${{ matrix.binary_name }}
+          else
+            tar -czf ../${{ matrix.asset_name }} ${{ matrix.binary_name }}
+          fi
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}
+          if-no-files-found: error
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download packaged assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*/*
+          generate_release_notes: true

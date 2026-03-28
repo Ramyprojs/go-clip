@@ -1,31 +1,39 @@
 # goclip
 
-`goclip` is a terminal clipboard manager written in Go. It stores clipboard history locally, supports fuzzy search from the command line, and includes an interactive Bubble Tea TUI for browsing, copying, and deleting clips.
+`goclip` is a terminal clipboard manager written in Go. It stores clipboard history locally, supports fuzzy search from the command line, and includes an interactive Bubble Tea TUI for browsing, adding, copying, and deleting clips.
 
 ## Features
 
 - Local clipboard history stored in BoltDB
 - `goclip add` for saving text from arguments or piped stdin
 - `goclip list`, `search`, `delete`, `clear`, and `export` commands
-- Interactive TUI with live search, copy, delete, and quit keybindings
+- Interactive TUI with live search, add, copy, delete, and quit keybindings
 - Configurable history size, DB path, and preview length through YAML config
+- One-command install scripts for macOS, Linux, and Windows PowerShell
+- Built-in `goclip uninstall` command to remove the binary and local data
 
 ## Installation
 
-### Clone and build
+### macOS and Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ramyprojs/go-clip/main/scripts/install.sh | sh
+```
+
+### Windows PowerShell
+
+```powershell
+irm https://raw.githubusercontent.com/Ramyprojs/go-clip/main/scripts/install.ps1 | iex
+```
+
+These installers download the latest tagged release from GitHub Releases, so users do not need to clone the repository.
+
+### Clone and build manually
 
 ```bash
 git clone https://github.com/Ramyprojs/go-clip.git
 cd go-clip
 make build
-```
-
-The binary will be written to `bin/goclip`.
-
-### Install with Go
-
-```bash
-go install .
 ```
 
 ## Quick Start
@@ -39,6 +47,13 @@ goclip
 ```
 
 Running `goclip` with no subcommand launches the TUI by default.
+
+Inside the TUI:
+
+- `A` starts add mode
+- `Enter` copies the selected clip, or saves a new clip while add mode is active
+- `D` deletes the selected clip
+- `Q` quits
 
 ## Configuration
 
@@ -75,6 +90,13 @@ Launch the interactive TUI explicitly.
 ```bash
 goclip ui
 ```
+
+The TUI supports:
+
+- `A` to add a new clip without leaving the interface
+- `Enter` to copy the selected clip
+- `D` to delete the selected clip
+- `Q` to quit
 
 ### `goclip add`
 
@@ -137,15 +159,28 @@ Print the application version.
 goclip version
 ```
 
+### `goclip uninstall`
+
+Remove the installed binary, local history, and config after confirmation.
+
+```bash
+goclip uninstall
+```
+
 ## Make Targets
 
 ```bash
 make build
+make cross-build
 make run
 make test
 make clean
 make install
 ```
+
+## Release Flow
+
+Pushing a tag like `v0.2.0` triggers [`.github/workflows/release.yml`](/Users/e3tsamy/docu/Prog/go-clip/.github/workflows/release.yml), which builds release archives for Linux, macOS, and Windows and uploads them to GitHub Releases. The install scripts use those release assets.
 
 ## Screenshots
 
