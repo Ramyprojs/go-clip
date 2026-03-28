@@ -52,3 +52,46 @@ func TestStoreSaveClip(t *testing.T) {
 		t.Fatalf("saved clip count = %d, want 1", count)
 	}
 }
+
+func TestStoreGetAllClips(t *testing.T) {
+	t.Parallel()
+
+	store, err := OpenDB(filepath.Join(t.TempDir(), "history.db"))
+	if err != nil {
+		t.Fatalf("OpenDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseDB(); err != nil {
+			t.Fatalf("CloseDB() error = %v", err)
+		}
+	})
+
+	baseTime := time.Date(2026, time.March, 28, 15, 30, 0, 0, time.UTC)
+	entries := []clip.Clip{
+		{Content: "oldest", CopiedAt: baseTime, Source: "test"},
+		{Content: "newest", CopiedAt: baseTime.Add(2 * time.Minute), Source: "test"},
+		{Content: "middle", CopiedAt: baseTime.Add(time.Minute), Source: "test"},
+	}
+
+	for _, entry := range entries {
+		if err := store.SaveClip(entry); err != nil {
+			t.Fatalf("SaveClip() error = %v", err)
+		}
+	}
+
+	got, err := store.GetAllClips()
+	if err != nil {
+		t.Fatalf("GetAllClips() error = %v", err)
+	}
+
+	if len(got) != 3 {
+		t.Fatalf("GetAllClips() len = %d, want 3", len(got))
+	}
+
+	wantOrder := []string{"newest", "middle", "oldest"}
+	for i, want := range wantOrder {
+		if got[i].Content != want {
+			t.Fatalf("GetAllClips()[%d].Content = %q, want %q", i, got[i].Content, want)
+		}
+	}
+}

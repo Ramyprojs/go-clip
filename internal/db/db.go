@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"time"
 
@@ -101,6 +102,47 @@ func (s *Store) SaveClip(entry clip.Clip) error {
 	}
 
 	return nil
+}
+
+// GetAllClips returns all stored clipboard entries sorted from newest to oldest.
+func (s *Store) GetAllClips() ([]clip.Clip, error) {
+	if s == nil {
+		return nil, errors.New("db store is nil")
+	}
+
+	if s.db == nil {
+		return nil, errors.New("db is not open")
+	}
+
+	clips := make([]clip.Clip, 0)
+	if err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(clipsBucket))
+		if bucket == nil {
+			return errors.New("clips bucket not found")
+		}
+
+		return bucket.ForEach(func(_, value []byte) error {
+			var entry clip.Clip
+			if err := json.Unmarshal(value, &entry); err != nil {
+				return fmt.Errorf("unmarshal clip: %w", err)
+			}
+
+			clips = append(clips, entry)
+			return nil
+		})
+	}); err != nil {
+		return nil, fmt.Errorf("get all clips: %w", err)
+	}
+
+	sort.Slice(clips, func(i, j int) bool {
+		if clips[i].CopiedAt.Equal(clips[j].CopiedAt) {
+			return clips[i].ID > clips[j].ID
+		}
+
+		return clips[i].CopiedAt.After(clips[j].CopiedAt)
+	})
+
+	return clips, nil
 }
 
 func resolveDBPath(path string) (string, error) {
