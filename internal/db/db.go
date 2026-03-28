@@ -145,6 +145,73 @@ func (s *Store) GetAllClips() ([]clip.Clip, error) {
 	return clips, nil
 }
 
+// DeleteClip removes a clipboard entry by its ID.
+func (s *Store) DeleteClip(id uint64) error {
+	if s == nil {
+		return errors.New("db store is nil")
+	}
+
+	if s.db == nil {
+		return errors.New("db is not open")
+	}
+
+	if err := s.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(clipsBucket))
+		if bucket == nil {
+			return errors.New("clips bucket not found")
+		}
+
+		cursor := bucket.Cursor()
+		for key, value := cursor.First(); key != nil; key, value = cursor.Next() {
+			var entry clip.Clip
+			if err := json.Unmarshal(value, &entry); err != nil {
+				return fmt.Errorf("unmarshal clip: %w", err)
+			}
+
+			if entry.ID == id {
+				if err := bucket.Delete(key); err != nil {
+					return fmt.Errorf("delete clip: %w", err)
+				}
+
+				return nil
+			}
+		}
+
+		return fmt.Errorf("clip with id %d not found", id)
+	}); err != nil {
+		return fmt.Errorf("delete clip: %w", err)
+	}
+
+	return nil
+}
+
+// ClearAll removes all clipboard entries from the clips bucket.
+func (s *Store) ClearAll() error {
+	if s == nil {
+		return errors.New("db store is nil")
+	}
+
+	if s.db == nil {
+		return errors.New("db is not open")
+	}
+
+	if err := s.db.Update(func(tx *bbolt.Tx) error {
+		if err := tx.DeleteBucket([]byte(clipsBucket)); err != nil {
+			return fmt.Errorf("delete clips bucket: %w", err)
+		}
+
+		if _, err := tx.CreateBucket([]byte(clipsBucket)); err != nil {
+			return fmt.Errorf("recreate clips bucket: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return fmt.Errorf("clear all clips: %w", err)
+	}
+
+	return nil
+}
+
 func resolveDBPath(path string) (string, error) {
 	if path != "" {
 		return path, nil

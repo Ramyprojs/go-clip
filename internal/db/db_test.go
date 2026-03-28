@@ -95,3 +95,85 @@ func TestStoreGetAllClips(t *testing.T) {
 		}
 	}
 }
+
+func TestStoreDeleteClip(t *testing.T) {
+	t.Parallel()
+
+	store, err := OpenDB(filepath.Join(t.TempDir(), "history.db"))
+	if err != nil {
+		t.Fatalf("OpenDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseDB(); err != nil {
+			t.Fatalf("CloseDB() error = %v", err)
+		}
+	})
+
+	baseTime := time.Date(2026, time.March, 28, 16, 0, 0, 0, time.UTC)
+	entries := []clip.Clip{
+		{ID: 101, Content: "keep me", CopiedAt: baseTime, Source: "test"},
+		{ID: 202, Content: "delete me", CopiedAt: baseTime.Add(time.Minute), Source: "test"},
+	}
+
+	for _, entry := range entries {
+		if err := store.SaveClip(entry); err != nil {
+			t.Fatalf("SaveClip() error = %v", err)
+		}
+	}
+
+	if err := store.DeleteClip(202); err != nil {
+		t.Fatalf("DeleteClip() error = %v", err)
+	}
+
+	got, err := store.GetAllClips()
+	if err != nil {
+		t.Fatalf("GetAllClips() error = %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("GetAllClips() len = %d, want 1", len(got))
+	}
+
+	if got[0].ID != 101 {
+		t.Fatalf("remaining clip ID = %d, want 101", got[0].ID)
+	}
+}
+
+func TestStoreClearAll(t *testing.T) {
+	t.Parallel()
+
+	store, err := OpenDB(filepath.Join(t.TempDir(), "history.db"))
+	if err != nil {
+		t.Fatalf("OpenDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseDB(); err != nil {
+			t.Fatalf("CloseDB() error = %v", err)
+		}
+	})
+
+	baseTime := time.Date(2026, time.March, 28, 16, 15, 0, 0, time.UTC)
+	entries := []clip.Clip{
+		{Content: "first", CopiedAt: baseTime, Source: "test"},
+		{Content: "second", CopiedAt: baseTime.Add(time.Minute), Source: "test"},
+	}
+
+	for _, entry := range entries {
+		if err := store.SaveClip(entry); err != nil {
+			t.Fatalf("SaveClip() error = %v", err)
+		}
+	}
+
+	if err := store.ClearAll(); err != nil {
+		t.Fatalf("ClearAll() error = %v", err)
+	}
+
+	got, err := store.GetAllClips()
+	if err != nil {
+		t.Fatalf("GetAllClips() error = %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Fatalf("GetAllClips() len = %d, want 0", len(got))
+	}
+}
