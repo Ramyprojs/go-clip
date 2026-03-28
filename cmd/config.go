@@ -19,6 +19,19 @@ func loadAppConfig() error {
 	return nil
 }
 
+func loadAppConfigWithFallback(allowFallback bool) error {
+	if err := loadAppConfig(); err != nil {
+		if !allowFallback {
+			return err
+		}
+
+		appConfig = config.DefaultConfig()
+		return nil
+	}
+
+	return nil
+}
+
 func openStore() (*db.Store, error) {
 	return db.OpenDB(appConfig.DBPath)
 }

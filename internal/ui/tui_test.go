@@ -60,7 +60,7 @@ func TestModelCopiesSelectedClipOnEnter(t *testing.T) {
 	mockClipboard := &fakeClipboard{}
 	m := newModelWithRuntime([]clip.Clip{
 		{ID: 1, Content: "copy me", CopiedAt: now},
-	}, nil, mockClipboard, 60)
+	}, nil, mockClipboard, 60, 500)
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = updated.(model)
@@ -85,7 +85,7 @@ func TestModelDeletesSelectedClipOnUppercaseD(t *testing.T) {
 			{ID: 1, Content: "oldest", CopiedAt: now},
 		},
 	}
-	m := newModelWithRuntime(store.clips, store, nil, 60)
+	m := newModelWithRuntime(store.clips, store, nil, 60, 500)
 	m.selected = 1
 	m.applyFilter()
 
@@ -102,6 +102,76 @@ func TestModelDeletesSelectedClipOnUppercaseD(t *testing.T) {
 
 	if m.status != "Deleted selected clip." {
 		t.Fatalf("status = %q, want %q", m.status, "Deleted selected clip.")
+	}
+}
+
+func TestModelSavesNewClipFromAddMode(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 28, 22, 37, 0, 0, time.UTC)
+	store := &fakeStore{
+		clips: []clip.Clip{
+			{ID: 1, Content: "existing clip", CopiedAt: now},
+		},
+	}
+	m := newModelWithRuntime(store.clips, store, nil, 60, 500)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+	m = updated.(model)
+	m = typeQuery(t, m, "fresh clip from ui")
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(model)
+
+	if len(store.saved) != 1 {
+		t.Fatalf("saved clips = %d, want 1", len(store.saved))
+	}
+
+	if store.saved[0].Content != "fresh clip from ui" {
+		t.Fatalf("saved content = %q, want %q", store.saved[0].Content, "fresh clip from ui")
+	}
+
+	if store.saved[0].Source != "ui" {
+		t.Fatalf("saved source = %q, want %q", store.saved[0].Source, "ui")
+	}
+
+	if m.adding {
+		t.Fatal("adding = true, want false")
+	}
+
+	if len(m.clips) != 2 {
+		t.Fatalf("clip count = %d, want 2", len(m.clips))
+	}
+
+	if m.clips[0].Content != "fresh clip from ui" {
+		t.Fatalf("clips[0].Content = %q, want %q", m.clips[0].Content, "fresh clip from ui")
+	}
+
+	if m.status != "Saved new clip." {
+		t.Fatalf("status = %q, want %q", m.status, "Saved new clip.")
+	}
+}
+
+func TestAddModeDoesNotWriteIntoSearchQuery(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 28, 22, 41, 0, 0, time.UTC)
+	store := &fakeStore{
+		clips: []clip.Clip{
+			{ID: 1, Content: "existing clip", CopiedAt: now},
+		},
+	}
+	m := newModelWithRuntime(store.clips, store, nil, 60, 500)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = updated.(model)
+	m = typeQuery(t, m, "draft clip")
+
+	if m.query != "" {
+		t.Fatalf("query = %q, want empty", m.query)
+	}
+
+	if m.draft != "draft clip" {
+		t.Fatalf("draft = %q, want %q", m.draft, "draft clip")
 	}
 }
 
@@ -137,7 +207,7 @@ func TestViewShowsStatusBarHints(t *testing.T) {
 	})
 
 	view := m.View()
-	if !strings.Contains(view, "Enter copy") {
+	if !strings.Contains(view, "A add") {
 		t.Fatalf("View() does not contain status hints: %q", view)
 	}
 }
@@ -170,8 +240,10 @@ func (f *fakeClipboard) WriteText(content string) error {
 type fakeStore struct {
 	clips   []clip.Clip
 	deleted []uint64
+	saved   []clip.Clip
 	getErr  error
 	delErr  error
+	saveErr error
 }
 
 func (f *fakeStore) DeleteClip(id uint64) error {
@@ -206,4 +278,22 @@ func (f *fakeStore) GetAllClips() ([]clip.Clip, error) {
 	}
 
 	return append([]clip.Clip(nil), f.clips...), nil
+}
+
+func (f *fakeStore) SaveClip(entry clip.Clip) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+
+	if entry.ID == 0 {
+		entry.ID = uint64(len(f.clips) + len(f.saved) + 1)
+	}
+
+	if entry.CopiedAt.IsZero() {
+		entry.CopiedAt = time.Now().UTC()
+	}
+
+	f.saved = append(f.saved, entry)
+	f.clips = append([]clip.Clip{entry}, f.clips...)
+	return nil
 }
