@@ -9,7 +9,7 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return cmd.Help()
+		return runUICommand(cmd, args)
 	},
 }
 

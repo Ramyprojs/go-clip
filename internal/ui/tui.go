@@ -9,6 +9,7 @@ import (
 	sysclip "golang.design/x/clipboard"
 
 	"github.com/Ramyprojs/goclip/internal/clip"
+	"github.com/Ramyprojs/goclip/internal/db"
 	clipsearch "github.com/Ramyprojs/goclip/internal/search"
 )
 
@@ -91,6 +92,34 @@ func newSystemClipboard() (clipboardWriter, error) {
 
 func (systemClipboard) WriteText(content string) error {
 	sysclip.Write(sysclip.FmtText, []byte(content))
+	return nil
+}
+
+// StartTUI loads clipboard history and launches the Bubble Tea interface.
+func StartTUI() error {
+	store, err := db.OpenDB("")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = store.CloseDB()
+	}()
+
+	clips, err := store.GetAllClips()
+	if err != nil {
+		return err
+	}
+
+	clipboard, clipboardErr := newSystemClipboard()
+	model := newModelWithRuntime(clips, store, clipboard)
+	if clipboardErr != nil {
+		model.status = fmt.Sprintf("Clipboard unavailable: %v", clipboardErr)
+	}
+
+	if _, err := tea.NewProgram(model, tea.WithAltScreen()).Run(); err != nil {
+		return fmt.Errorf("run tui: %w", err)
+	}
+
 	return nil
 }
 
@@ -358,9 +387,13 @@ func (m model) renderStatusBar() string {
 	left := m.styles.statusMessage.Render(m.status)
 	right := m.styles.statusHints.Render(statusHints)
 	width := m.contentWidth()
+	innerWidth := width - 4
+	if innerWidth < 24 {
+		innerWidth = 24
+	}
 
 	content := left
-	remaining := width - lipgloss.Width(left) - lipgloss.Width(right)
+	remaining := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
 	if remaining > 1 {
 		content = left + strings.Repeat(" ", remaining) + right
 	} else {
